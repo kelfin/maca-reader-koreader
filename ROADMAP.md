@@ -128,15 +128,34 @@ Ranked by value for effort:
 - Phase 3: compare dashboard totals against raw queries on `statistics.sqlite3`.
 - Phase 4: read on one device, open on the other, confirm position, highlights and stats match; test the offline-then-reconnect conflict case.
 
+## Added to the plan: motion, high refresh rate and glass (2026-11-14)
+
+Requested after the first build. Developed ahead of the remaining phases.
+
+- **High refresh rate:** the launcher asks Android for the display's fastest mode at the current resolution (`setHighRefreshRate` in the launcher fork). Toggle in More.
+- **Animation engine** (`maca/animator.lua`): KOReader has none, so transitions are composed on the framebuffer from a before and an after picture. Kinds: slide, cover, uncover, wipe, unwipe. Time-based, so they run at whatever rate the display takes frames.
+- **Where it is used:** tab switches, opening and closing screens, drilling into groups, page turns, the reader bars, the display sheet. List flings follow the finger and are time-based.
+- **Glass-inspired look** (`maca/glass.lua`): frosted panels made by shrinking and re-stretching what is behind them; floating navigation pill, frosted header, floating reader bars, frosted display sheet, a wash of the current cover's colour on the home tab. Toggle in More, because the cost on a real device is unmeasured.
+- **Not possible in this toolkit:** real-time refraction, light effects, morphing shapes, zoom transitions. Those need native Android screens (the decision gate above).
+- **Still to do:** page turns that follow the finger (today a swipe or tap triggers a fixed 0.2 s slide); measuring frame rates on the phone and the tablet.
+
 ## Status
 
-Phase 0, as of 2026-11-14:
+As of 2026-11-14. "Emulator" means run by the scripted checks in `tools/maca/check.sh` on the desktop emulator. Nothing has run on the phone or the tablet yet.
 
-- [x] Upstream KOReader cloned with full history (remote `upstream`), work branch `maca`.
-- [x] GitHub fork `kelfin/maca-reader` set as `origin`; launcher fork `kelfin/android-luajit-launcher` (branch `maca`) wired in as the submodule.
-- [x] Build dependencies installed; desktop emulator builds and starts cleanly.
-- [x] `android-arm64` APK builds: label "Maca Reader", application ID `io.github.kelfin.macareader`, signed with the personal key in `~/.config/maca-reader/`.
-- [ ] APK installed and checked on the phone and the tablet.
-- [ ] Own icon.
-- [ ] CI (GitHub Actions) building the APK.
-- [ ] Non-e-ink defaults (no flashing, colour, immersive mode, follow system dark mode, DPI scaling).
+| Phase | State | Notes |
+|---|---|---|
+| 0 Foundation | Done except CI run | Fork, signed APK, own name / application ID / icon, emulator harness. `.github/workflows/maca-android.yml` is written but has never run. |
+| 1 Library | Emulator | Home, shelves, grid and list, filters, sort, grouping, search, book page, several library folders, next in series. |
+| 2 Reading screen | Emulator, partly | Bars with seek slider and time left, display sheet, five page themes, bundled fonts, first-run margins. Missing: follow-the-finger page turns, simpler gesture defaults, cleaner status line. |
+| 3 Statistics | Emulator | Today card, week, overview, heat map, hours, most read, year in review, goal. Missing: share image, goal reminder. |
+| 4 Sync | Written, untested across devices | Position through KOSync (sign-in and auto-sync in More). Highlights, notes and status through a shared folder (`maca/syncfolder.lua`; additive merge, deletions do not propagate). Statistics sync is left to the Statistics plugin's own cloud sync. Book files are left to whatever syncs the folder. |
+| 5 Extras | Partly | Done: highlights notebook with Markdown export and share, time-left estimates, series awareness, backup and restore. Not started: read aloud, Wi-Fi upload, vocabulary review, comics mode, PDF comfort, home-screen widget, AI assist, per-format profiles, split view. |
+| 6 Hardening | Started | Unit tests in `spec/unit/maca_spec.lua`, scripted emulator checks. Missing: large-library test, device performance pass, upstream rebase routine. |
+
+### Before calling it usable
+
+1. Install on the phone and the tablet (portrait) and go through every screen.
+2. Measure animation and scrolling smoothness on both; turn glass off by default if it stutters.
+3. Check the top bar against the phone's camera cut-out.
+4. Try folder sync between the two devices.

@@ -172,6 +172,7 @@ function Home:showBook(entry)
             ui = self.ui,
             entry = entry,
             on_open = function() self:openBook(entry) end,
+            on_open_other = function(other) self:openBook(other) end,
             on_change = function() self:rebuild(true) end,
         })
     end)
@@ -502,6 +503,76 @@ function Home:manageFolders()
     UIManager:show(dialog)
 end
 
+function Home:chooseSyncFolder()
+    local SyncFolder = require("maca/syncfolder")
+    local choices = { { "pick", _("Choose folder…") } }
+    if SyncFolder.dir() then choices[#choices + 1] = { "off", _("Turn off") } end
+    self:pick(_("Highlights, notes and reading status are shared through this folder. Keep it in sync between your devices with an app such as Syncthing."),
+        choices, nil, function(choice)
+            if choice == "off" then
+                G_reader_settings:delSetting("maca_sync_dir")
+                self:rebuild(true)
+                return
+            end
+            local PathChooser = require("ui/widget/pathchooser")
+            UIManager:show(PathChooser:new{
+                select_directory = true,
+                select_file = false,
+                path = SyncFolder.dir() or Library:getFolders()[1],
+                onConfirm = function(path)
+                    G_reader_settings:saveSetting("maca_sync_dir", path)
+                    self:rebuild(true)
+                end,
+            })
+        end)
+end
+
+function Home:backup()
+    local Backup = require("maca/backup")
+    local InfoMessage = require("ui/widget/infomessage")
+    local PathChooser = require("ui/widget/pathchooser")
+    UIManager:show(PathChooser:new{
+        select_directory = true,
+        select_file = false,
+        path = Library:getFolders()[1],
+        onConfirm = function(path)
+            local target, copied = Backup.create(path)
+            UIManager:show(InfoMessage:new{
+                text = target and T(_("Backup saved to %1 (%2 files)."), BD.dirpath(target), copied)
+                    or _("Could not create a backup in that folder."),
+            })
+        end,
+    })
+end
+
+function Home:restore()
+    local Backup = require("maca/backup")
+    local ConfirmBox = require("ui/widget/confirmbox")
+    local InfoMessage = require("ui/widget/infomessage")
+    local PathChooser = require("ui/widget/pathchooser")
+    UIManager:show(PathChooser:new{
+        select_directory = true,
+        select_file = false,
+        path = Library:getFolders()[1],
+        onConfirm = function(path)
+            if not Backup.isBackup(path) then
+                UIManager:show(InfoMessage:new{ text = _("That folder is not a Maca backup.") })
+                return
+            end
+            UIManager:show(ConfirmBox:new{
+                text = _("Replace the current settings, history and reading statistics with this backup? The app will close; open it again afterwards."),
+                ok_text = _("Restore"),
+                ok_callback = function()
+                    Backup.restore(path)
+                    -- leave without saving, or the old settings would overwrite the restored ones
+                    G_reader_settings.flush = function() end
+                    UIManager:quit()
+                end,
+            })
+        end,
+    })
+end
+
 function Home:setGoal()
     local SpinWidget = require("ui/widget/spinwidget")
     UIManager:show(SpinWidget:new{
@@ -539,6 +610,9 @@ function Home:moreRows(w)
             Library:scan()
             Library:extractPending(Covers.specs())
         end, { no_chevron = true })
+    rows[#rows + 1] = Rows.item(w, "note", _("Highlights and notes"), nil, function()
+        require("maca/notebook").showAll(self.ui)
+    end)
     rows[#rows + 1] = Rows.item(w, "book", _("Browse files"), nil, function() self:browseFiles() end)
 
     rows[#rows + 1] = Rows.section(_("Reading"))
@@ -601,6 +675,34 @@ function Home:moreRows(w)
                 dialog:onShowKeyboard()
             end)
     end
+
+    -- highlights, notes and status through a folder the user keeps in sync
+    local SyncFolder = require("maca/syncfolder")
+    local sync_dir = SyncFolder.dir()
+    if not (kosync and kosync.settings) then
+        rows[#rows + 1] = Rows.section(_("Sync between devices"))
+    end
+    rows[#rows + 1] = Rows.item(w, "folder", _("Highlights and status"),
+        sync_dir and _("On") or _("Off"), function() self:chooseSyncFolder() end,
+        { sub = sync_dir and BD.dirpath(sync_dir)
+            or _("Pick a folder that you keep in sync between your devices") })
+    if sync_dir then
+        rows[#rows + 1] = Rows.item(w, "sync", _("Sync highlights now"), nil, function()
+            local touched, gained = SyncFolder.syncAll(Library.books)
+            Library:scan()
+            UIManager:show(require("ui/widget/infomessage"):new{
+                text = gained > 0
+                    and T(N_("Added %1 highlight from other devices.", "Added %1 highlights from other devices.", gained), gained)
+                    or _("Everything is up to date."),
+                timeout = 3,
+            })
+        end, { no_chevron = true })
+    end
+
+    rows[#rows + 1] = Rows.section(_("Backup"))
+    rows[#rows + 1] = Rows.item(w, "bookmark", _("Back up settings and statistics"), nil,
+        function() self:backup() end, { no_chevron = true })
+    rows[#rows + 1] = Rows.item(w, "sync", _("Restore a backup"), nil, function() self:restore() end)
 
     rows[#rows + 1] = Rows.section(_("App"))
     rows[#rows + 1] = Rows.item(w, "home", _("Open Maca when the app starts"),

@@ -27,6 +27,11 @@ function Maca:init()
         -- inside a book: remember it changed, so the library shows fresh progress
         self.opened_file = self.ui.document.file
         require("maca/reader").hookStyles(self.ui)
+        -- highlights made on other devices, before the reader loads this book's settings
+        local SyncFolder = require("maca/syncfolder")
+        if SyncFolder.enabled() and self.ui.doc_settings then
+            pcall(SyncFolder.import, self.opened_file, self.ui.doc_settings, true)
+        end
         return
     end
     require("maca/animator").applyRefreshRate()
@@ -66,6 +71,8 @@ function Maca:onCloseDocument()
         local file = self.opened_file
         -- sidecar is written while closing; refresh once that is done
         UIManager:nextTick(function()
+            local SyncFolder = require("maca/syncfolder")
+            if SyncFolder.enabled() then pcall(SyncFolder.export, file) end
             require("maca/library"):refreshBook(file)
         end)
     end

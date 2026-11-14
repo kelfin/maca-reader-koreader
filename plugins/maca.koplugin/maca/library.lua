@@ -415,6 +415,19 @@ function Library:counts()
     return counts
 end
 
+--- The book that follows `entry` in its series, if the library has it.
+function Library:nextInSeries(entry)
+    if not entry.series or not entry.series_index then return nil end
+    local best
+    for _, other in ipairs(self.books) do
+        if other ~= entry and other.series == entry.series and other.series_index
+                and other.series_index > entry.series_index then
+            if not best or other.series_index < best.series_index then best = other end
+        end
+    end
+    return best
+end
+
 --- The book to offer as "continue reading": most recently read, not finished.
 function Library:current()
     local best

@@ -28,6 +28,7 @@ local BookDetail = MacaScreen:extend{
     ui = nil,
     entry = nil,
     on_open = nil,   -- function(): open the book
+    on_open_other = nil, -- function(entry): open another book (next in series)
     on_change = nil, -- function(): the book's status changed or it was deleted
 }
 
@@ -42,7 +43,8 @@ function BookDetail:init()
 end
 
 function BookDetail:onResize()
-    local args = { ui = self.ui, entry = self.entry, on_open = self.on_open, on_change = self.on_change }
+    local args = { ui = self.ui, entry = self.entry, on_open = self.on_open, on_change = self.on_change,
+        on_open_other = self.on_open_other }
     UIManager:close(self)
     UIManager:show(BookDetail:new(args))
 end
@@ -155,6 +157,21 @@ function BookDetail:rebuild(keep_offset)
         }
     end
 
+    local next_book = Library:nextInSeries(entry)
+    if next_book and entry.status == "complete" then
+        rows[#rows + 1] = Rows.item(w, "forward", T(_("Next in series: %1"), next_book.title), nil, function()
+            Animator.transition({ kind = "cover", dir = "left", duration = 0.24 }, function()
+                UIManager:show(BookDetail:new{
+                    ui = self.ui, entry = next_book, on_change = self.on_change,
+                    on_open = function()
+                        UIManager:close(self)
+                        self.on_open_other(next_book)
+                    end,
+                })
+            end)
+        end)
+    end
+
     -- reading facts
     local stats = Stats:book(entry.file)
     local items = {}
@@ -201,6 +218,12 @@ function BookDetail:rebuild(keep_offset)
             end,
         })
     end
+
+    local note_count = entry.has_annotations and #require("maca/notebook").items(entry.file) or 0
+    rows[#rows + 1] = Rows.spacer(dp(8))
+    rows[#rows + 1] = Rows.item(w, "note", _("Highlights and notes"), tostring(note_count), function()
+        require("maca/notebook").showBook(self.ui, entry)
+    end)
 
     rows[#rows + 1] = Rows.section(_("File"))
     local dir, name = util.splitFilePathName(entry.file)

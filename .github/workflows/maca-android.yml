@@ -1,0 +1,32 @@
+name: Maca Android build
+
+# Builds an unsigned arm64 APK. Sign it locally (see CLAUDE.md) or add a
+# keystore through repository secrets before publishing it anywhere.
+on:
+  push:
+    branches: [maca]
+    paths-ignore: ['**.md']
+  workflow_dispatch:
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    container:
+      image: koreader/koandroid:latest
+      options: --user root
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Fetch submodules
+        run: |
+          git config --global --add safe.directory '*'
+          git submodule update --init --depth 1 base platform/android/luajit-launcher l10n resources/fonts
+      - name: Build APK
+        run: ./kodev release -i android-arm64
+      - uses: actions/upload-artifact@v4
+        with:
+          name: maca-reader-android-arm64
+          path: maca-reader-android-arm64-*.apk
+          if-no-files-found: error

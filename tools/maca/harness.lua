@@ -54,6 +54,65 @@ function H.steps(list)
     nextStep()
 end
 
+-- Helpers shared by the scripts ---------------------------------------------
+
+local Event = require("ui/event")
+local Geom = require("ui/geometry")
+local time = require("ui/time")
+
+function H.gesture(kind, x, y, extra)
+    local ges = { ges = kind, pos = Geom:new{ x = x, y = y, w = 0, h = 0 }, time = time.now() }
+    for k, v in pairs(extra or {}) do ges[k] = v end
+    UIManager:sendEvent(Event:new("Gesture", ges))
+end
+
+function H.tap(x, y) H.gesture("tap", x, y) end
+
+--- Topmost widget on screen.
+function H.top()
+    return UIManager._window_stack[#UIManager._window_stack].widget
+end
+
+--- The Maca home screen, if it is shown.
+function H.home()
+    for i = #UIManager._window_stack, 1, -1 do
+        local widget = UIManager._window_stack[i].widget
+        if widget.nav and widget.switchTab then return widget end
+    end
+end
+
+function H.ui()
+    return require("apps/reader/readerui").instance
+end
+
+--- First row of a Maca screen whose `name` (item and section rows) matches `pattern`.
+function H.findRow(screen, pattern)
+    for _, row in ipairs(screen.scroll.rows) do
+        if type(row.name) == "string" and row.name:find(pattern) then return row end
+    end
+end
+
+--- Scroll a screen so `row` sits just below the header, then tap it at
+-- (lx, ly) in row coordinates (default: the middle of the row).
+function H.tapRow(screen, row, lx, ly)
+    assert(row, "no such row")
+    screen.scroll:scrollTo(row.y - screen.header_h - Device.screen:scaleBySize(8))
+    UIManager:forceRePaint()
+    local x = screen.dimen.x + (lx or math.floor(screen.dimen.w / 2))
+    local y = screen.dimen.y + row.y - screen.scroll.offset + (ly or math.floor(row.h / 2))
+    assert(y > screen.header_h and y < screen.dimen.h - screen.scroll.touch_bottom, "row is not on screen")
+    H.tap(x, y)
+end
+
+--- Close the topmost widget, and assert it is not `keep`.
+function H.closeTop(keep)
+    local top = H.top()
+    assert(top ~= keep, "expected a dialog on top")
+    UIManager:close(top)
+    UIManager:forceRePaint()
+    return top
+end
+
 _G.MacaHarness = H
 H.after(tonumber(os.getenv("MACA_DELAY")) or 2, function()
     dofile(script)

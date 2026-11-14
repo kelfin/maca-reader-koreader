@@ -54,6 +54,7 @@ end
 --- Section title with an optional action on the right.
 function Rows.section(title, action, on_action)
     return new{
+        name = title,
         h = dp(48),
         paint = function(row, bb, x, y, w)
             if not row.built then
@@ -291,6 +292,7 @@ function Rows.chips(w, items, active, on_select)
         cx = cx + cw + gap
     end
     return {
+        rects = rects, -- lets scripts find a chip
         h = cy + chip_h + dp(10),
         paint = function(row, bb, x, y)
             for i, rect in ipairs(rects) do
@@ -359,6 +361,7 @@ function Rows.item(w, icon, label, value, on_tap, opts)
     opts = opts or {}
     local icon_size = dp(24)
     return new{
+        name = label, -- lets scripts find the row
         h = opts.sub and dp(68) or dp(56),
         paint = function(row, bb, x, y)
             if not row.built then

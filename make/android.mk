@@ -49,6 +49,9 @@ ANDROID_ASSETS = $(ANDROID_LAUNCHER_BUILD)/assets
 ANDROID_ASSETS_COMPRESSION ?= -m0=lzma2 -mx=9
 ANDROID_LIBS = $(ANDROID_LAUNCHER_BUILD)/libs/$(ANDROID_ABI)
 ANDROID_FLAVOR ?= Rocks
+# Display name of the app (launcher label). The application ID lives in the
+# luajit-launcher submodule (app/build.gradle).
+ANDROID_APP_NAME ?= Maca Reader
 
 ifneq (,$(CI))
   GRADLE_FLAGS ?= --console=plain --no-daemon -x lintVital$(ANDROID_ARCH)RocksRelease
@@ -111,7 +114,7 @@ update-apk: all
 		-PbuildDir='$(abspath $(ANDROID_LAUNCHER_BUILD))' \
 		-PlibsPath='$(abspath $(dir $(ANDROID_LIBS)))' \
 		-PsevenZipLib='$(if $(MONOLIBTIC),koreader-monolibtic,7z)' \
-		-PprojectName='KOReader' \
+		-PprojectName='$(ANDROID_APP_NAME)' \
 		-PversCode='$(ANDROID_VERSION)' \
 		-PversName='$(ANDROID_NAME)' \
 		$(GRADLE_FLAGS) \

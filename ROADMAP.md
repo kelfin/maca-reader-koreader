@@ -132,12 +132,11 @@ Ranked by value for effort:
 
 Phase 0, as of 2026-11-14:
 
-- [x] Upstream KOReader cloned (remote `upstream`), work branch `maca`.
-- [x] Launcher label set to "Maca Reader" (`ANDROID_APP_NAME` in `make/android.mk`).
-- [ ] Build dependencies installed (needs sudo — see `CLAUDE.md`).
-- [ ] Emulator runs (`./kodev run`).
-- [ ] `android-arm64` APK builds and installs on both devices.
-- [ ] Own GitHub fork created and set as `origin`.
-- [ ] Application ID changed — it is set in the `platform/android/luajit-launcher` submodule (`app/build.gradle`, `org.koreader.launcher`), so this needs a fork of that submodule too. Until then, debug builds install beside stock KOReader as `org.koreader.launcher.debug`.
-- [ ] Icon, signing key, CI.
-- [ ] Non-e-ink defaults.
+- [x] Upstream KOReader cloned with full history (remote `upstream`), work branch `maca`.
+- [x] GitHub fork `kelfin/maca-reader` set as `origin`; launcher fork `kelfin/android-luajit-launcher` (branch `maca`) wired in as the submodule.
+- [x] Build dependencies installed; desktop emulator builds and starts cleanly.
+- [x] `android-arm64` APK builds: label "Maca Reader", application ID `io.github.kelfin.macareader`, signed with the personal key in `~/.config/maca-reader/`.
+- [ ] APK installed and checked on the phone and the tablet.
+- [ ] Own icon.
+- [ ] CI (GitHub Actions) building the APK.
+- [ ] Non-e-ink defaults (no flashing, colour, immersive mode, follow system dark mode, DPI scaling).

@@ -1,7 +1,7 @@
 # Use the git commit count as the (integer) Android version code
 ANDROID_VERSION ?= $(shell git rev-list --count HEAD)
 ANDROID_NAME ?= $(VERSION)
-ANDROID_APK = koreader-android-$(ANDROID_ARCH)$(KODEDUG_SUFFIX)-$(ANDROID_NAME).apk
+ANDROID_APK = maca-reader-android-$(ANDROID_ARCH)$(KODEDUG_SUFFIX)-$(ANDROID_NAME).apk
 
 # Run. {{{
 
@@ -49,9 +49,15 @@ ANDROID_ASSETS = $(ANDROID_LAUNCHER_BUILD)/assets
 ANDROID_ASSETS_COMPRESSION ?= -m0=lzma2 -mx=9
 ANDROID_LIBS = $(ANDROID_LAUNCHER_BUILD)/libs/$(ANDROID_ABI)
 ANDROID_FLAVOR ?= Rocks
-# Display name of the app (launcher label). The application ID lives in the
-# luajit-launcher submodule (app/build.gradle).
+# Display name of the app (launcher label).
 ANDROID_APP_NAME ?= Maca Reader
+# Application ID (package name on the device).
+ANDROID_PACKAGE_ID ?= io.github.kelfin.macareader
+# Signing: if this keystore exists (with its password in <keystore>.pass), the
+# APK is aligned and signed with it. Keep both files out of git and backed up:
+# Android only accepts updates signed with the same key.
+ANDROID_KEYSTORE ?= $(HOME)/.config/maca-reader/maca.keystore
+ANDROID_BUILD_TOOLS ?= $(lastword $(sort $(wildcard $(ANDROID_SDK_ROOT)/build-tools/*)))
 
 ifneq (,$(CI))
   GRADLE_FLAGS ?= --console=plain --no-daemon -x lintVital$(ANDROID_ARCH)RocksRelease
@@ -115,12 +121,20 @@ update-apk: all
 		-PlibsPath='$(abspath $(dir $(ANDROID_LIBS)))' \
 		-PsevenZipLib='$(if $(MONOLIBTIC),koreader-monolibtic,7z)' \
 		-PprojectName='$(ANDROID_APP_NAME)' \
+		-PappId='$(ANDROID_PACKAGE_ID)' \
 		-PversCode='$(ANDROID_VERSION)' \
 		-PversName='$(ANDROID_NAME)' \
 		$(GRADLE_FLAGS) \
 		'app:assemble$(ANDROID_ARCH)$(ANDROID_FLAVOR)$(if $(KODEBUG),Debug,Release)'
 	cp $(ANDROID_LAUNCHER_BUILD)/outputs/apk/$(ANDROID_ARCH)$(ANDROID_FLAVOR)/$(if $(KODEBUG),debug,release)/NativeActivity.apk $(ANDROID_APK)
+ifneq (,$(wildcard $(ANDROID_KEYSTORE)))
+	$(ANDROID_BUILD_TOOLS)/zipalign -f 4 $(ANDROID_APK) $(ANDROID_APK).aligned
+	mv $(ANDROID_APK).aligned $(ANDROID_APK)
+	$(ANDROID_BUILD_TOOLS)/apksigner sign --ks '$(ANDROID_KEYSTORE)' --ks-pass 'file:$(ANDROID_KEYSTORE).pass' $(ANDROID_APK)
+	rm -f $(ANDROID_APK).idsig
+else
 	type -P uber-apk-signer >/dev/null && uber-apk-signer --overwrite --apks $(ANDROID_APK) || echo 'WARNING: uber-apk-signer not found, APK is unsigned!'
+endif
 
 update: update-apk
 

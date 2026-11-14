@@ -7,7 +7,7 @@ settings the user has not touched.
 
 local Defaults = {}
 
-local VERSION = 1
+local VERSION = 2
 
 function Defaults.apply()
     local settings = G_reader_settings
@@ -27,6 +27,27 @@ function Defaults.apply()
     default("copt_h_page_margins", tablet and { 50, 50 } or { 25, 25 })
     -- Two pages side by side when a tablet is held in landscape.
     if tablet then default("copt_visible_pages", 2) end
+
+    -- A quiet status line: page and time left in the chapter, no bar or clock.
+    -- The reader takes this table as it is, so start from its complete defaults.
+    if settings:hasNot("footer") then
+        local ok, ReaderFooter = pcall(require, "apps/reader/modules/readerfooter")
+        if ok and ReaderFooter.default_settings then
+            local footer = require("util").tableDeepCopy(ReaderFooter.default_settings)
+            footer.disable_progress_bar = true
+            footer.all_at_once = true
+            footer.page_progress = true
+            footer.chapter_time_to_read = true
+            footer.time = false
+            footer.pages_left = false
+            footer.battery = false
+            footer.percentage = false
+            footer.book_time_to_read = false
+            footer.item_prefix = "compact_items"
+            footer.text_font_size = 12
+            settings:saveSetting("footer", footer)
+        end
+    end
 
     settings:saveSetting("maca_defaults_version", VERSION)
 end

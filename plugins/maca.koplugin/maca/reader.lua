@@ -390,6 +390,7 @@ end
 
 function Bars:showMore()
     local ui = self.ui
+    local Speech = require("maca/speech")
     local dialog
     local function item(text, fn)
         return { {
@@ -402,14 +403,35 @@ function Bars:showMore()
             end,
         } }
     end
-    dialog = ButtonDialog:new{
-        buttons = {
-            item(_("Notes and bookmarks"), function() ui:handleEvent(Event:new("ShowBookmark")) end),
-            item(_("About this book"), function() ui:handleEvent(Event:new("ShowBookInfo")) end),
-            item(_("More display options"), function() ui:handleEvent(Event:new("ShowConfigMenu")) end),
-            item(_("Full menu"), function() ui.menu:onShowMenu() end),
-        },
-    }
+    local buttons = {}
+    if Speech.available() then
+        if Speech.active then
+            buttons[#buttons + 1] = item(_("Stop reading aloud"), function() Speech:stop() end)
+        else
+            buttons[#buttons + 1] = item(_("Read aloud from this page"), function() Speech:start(ui) end)
+        end
+        local speeds = {}
+        for _, rate in ipairs(Speech.rates) do
+            speeds[#speeds + 1] = {
+                text = rate[2] .. (rate[1] == Speech.rate() and " ✓" or ""),
+                callback = function()
+                    Speech.setRate(rate[1])
+                    UIManager:close(dialog)
+                    self:close(true)
+                    if Speech.active then Speech:restart() end
+                end,
+            }
+        end
+        buttons[#buttons + 1] = speeds
+    end
+    buttons[#buttons + 1] = item(_("Notes and bookmarks"), function() ui:handleEvent(Event:new("ShowBookmark")) end)
+    buttons[#buttons + 1] = item(_("About this book"), function() ui:handleEvent(Event:new("ShowBookInfo")) end)
+    if require("maca/assistant").configured() then
+        buttons[#buttons + 1] = item(_("Ask about this page"), function() require("maca/assistant").askAboutPage(ui) end)
+    end
+    buttons[#buttons + 1] = item(_("More display options"), function() ui:handleEvent(Event:new("ShowConfigMenu")) end)
+    buttons[#buttons + 1] = item(_("Full menu"), function() ui.menu:onShowMenu() end)
+    dialog = ButtonDialog:new{ buttons = buttons }
     UIManager:show(dialog)
 end
 
@@ -774,6 +796,7 @@ function Reader.animatePageTurns(ui)
     if not module or module.maca_animated then return end
     module.maca_animated = true
     local turn = module.onGotoViewRel
+    module.maca_turn = turn -- the plain, unanimated page turn
     module.onGotoViewRel = function(this, diff)
         local scrolling = ui.view and ui.view.view_mode == "scroll" or ui.view and ui.view.page_scroll
         if scrolling or not G_reader_settings:nilOrTrue("maca_page_animation") then
@@ -791,6 +814,83 @@ function Reader.animatePageTurns(ui)
     end
 end
 
+--- Let a horizontal drag pull the next or previous page in under the finger.
+function Reader.dragPages(ui)
+    local module = ui.rolling or ui.paging
+    if not module then return end
+    local drag -- the drag in progress: { handle =, diff =, width = }
+
+    local function scrolling()
+        return ui.view and (ui.view.view_mode == "scroll" or ui.view.page_scroll)
+    end
+
+    local function begin(ges)
+        local dx, dy = ges.relative.x, ges.relative.y
+        if math.abs(dx) < dp(8) or math.abs(dx) < math.abs(dy) * 1.5 then return nil end
+        local diff = dx < 0 and 1 or -1
+        local before = ui:getCurrentPage()
+        local handle = Animator.drag({ kind = "slide", dir = dx < 0 and "left" or "right" },
+            function() module:maca_turn(diff) end,
+            function() return ui:getCurrentPage() ~= before end)
+        if not handle then return nil end
+        return { handle = handle, diff = diff, sign = dx < 0 and -1 or 1, width = Screen:getWidth() }
+    end
+
+    local function onPan(ges)
+        if scrolling() or not G_reader_settings:nilOrTrue("maca_page_animation") or not Animator.enabled() then
+            return false
+        end
+        if not drag then
+            if drag == false then return true end -- this gesture was judged not to be a page drag
+            drag = begin(ges)
+            if not drag then
+                return false
+            end
+        end
+        -- only movement in the direction the drag started counts
+        local travelled = math.max(0, ges.relative.x * drag.sign)
+        drag.handle.move(travelled / drag.width)
+        return true
+    end
+
+    local function release(flicked)
+        if not drag then
+            drag = nil
+            return false
+        end
+        local current = drag
+        drag = nil
+        local commit = flicked or current.handle.progress() > 0.33
+        current.handle.finish(commit, function() module:maca_turn(-current.diff) end)
+        return true
+    end
+
+    local zone = { ratio_x = 0, ratio_y = 0, ratio_w = 1, ratio_h = 1 }
+    local prefix = ui.rolling and "rolling" or "paging"
+    ui:registerTouchZones({
+        {
+            id = "maca_page_pan", ges = "pan", screen_zone = zone,
+            overrides = { prefix .. "_pan", prefix .. "_swipe" },
+            handler = onPan,
+        },
+        {
+            id = "maca_page_pan_release", ges = "pan_release", screen_zone = zone,
+            overrides = { prefix .. "_pan_release" },
+            handler = function() return release(false) end,
+        },
+        {
+            id = "maca_page_swipe", ges = "swipe", screen_zone = zone,
+            overrides = { prefix .. "_swipe" },
+            handler = function(ges)
+                if not drag then return false end
+                -- a flick completes the turn if it went the way the drag started
+                local same_way = (ges.direction == "west" and drag.sign < 0) or (ges.direction == "east" and drag.sign > 0)
+                return release(same_way)
+            end,
+        },
+    })
+end
+
 --- Register the tap zones that open the bars. Call once the reader is ready.
 function Reader.setup(ui)
     local function show()
@@ -801,6 +901,7 @@ function Reader.setup(ui)
         return true
     end
     Reader.animatePageTurns(ui)
+    Reader.dragPages(ui)
     ui:registerTouchZones({
         {
             id = "maca_bars_centre",

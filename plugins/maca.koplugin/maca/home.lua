@@ -613,6 +613,11 @@ function Home:moreRows(w)
     rows[#rows + 1] = Rows.item(w, "note", _("Highlights and notes"), nil, function()
         require("maca/notebook").showAll(self.ui)
     end)
+    rows[#rows + 1] = Rows.item(w, "plus", _("Receive books over Wi-Fi"), nil, function()
+        require("maca/wifiupload"):show(function(received)
+            if received > 0 then Library:extractPending(Covers.specs()) end
+        end)
+    end, { sub = _("Send files from a browser on the same network") })
     rows[#rows + 1] = Rows.item(w, "book", _("Browse files"), nil, function() self:browseFiles() end)
 
     rows[#rows + 1] = Rows.section(_("Reading"))
@@ -703,6 +708,13 @@ function Home:moreRows(w)
     rows[#rows + 1] = Rows.item(w, "bookmark", _("Back up settings and statistics"), nil,
         function() self:backup() end, { no_chevron = true })
     rows[#rows + 1] = Rows.item(w, "sync", _("Restore a backup"), nil, function() self:restore() end)
+
+    local Assistant = require("maca/assistant")
+    rows[#rows + 1] = Rows.section(_("Reading assistant"))
+    rows[#rows + 1] = Rows.item(w, "info", _("Ask about the page"),
+        Assistant.configured() and _("On") or _("Off"), function()
+            Assistant.setup(function() self:rebuild(true) end)
+        end, { sub = _("Uses your own Anthropic API key; sends the page text only when you ask") })
 
     rows[#rows + 1] = Rows.section(_("App"))
     rows[#rows + 1] = Rows.item(w, "home", _("Open Maca when the app starts"),

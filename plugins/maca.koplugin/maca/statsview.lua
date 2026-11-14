@@ -350,6 +350,41 @@ function StatsView.yearRows(w, year)
     return rows
 end
 
+--- Paint rows into one tall picture and save it as PNG. Returns the path.
+function StatsView.saveImage(rows, w, title, name)
+    local Blitbuffer = require("ffi/blitbuffer")
+    local Device = require("device")
+    local lfs = require("libs/libkoreader-lfs")
+    local pad = dp(24)
+    local heading = Theme.text(title, 24, { bold = true, max_width = w - 2 * M })
+    local credit = Theme.text(_("Maca Reader"), 12.5, { color = Theme.MUTED })
+    local height = pad + heading:getSize().h + dp(16)
+    for _, row in ipairs(rows) do height = height + row.h end
+    height = height + credit:getSize().h + pad
+    local bb = Blitbuffer.new(w, height, Device.screen.bb:getType())
+    bb:fill(Theme.BG)
+    heading:paintTo(bb, M, pad)
+    local y = pad + heading:getSize().h + dp(16)
+    for _, row in ipairs(rows) do
+        row:paint(bb, 0, y, w)
+        if row.free then row:free() end
+        y = y + row.h
+    end
+    credit:paintTo(bb, M, y)
+    heading:free()
+    credit:free()
+    if Device.screen.night_mode then
+        -- colours were prepared for an inverted screen; a file is not inverted
+        bb:invertRect(0, 0, w, height)
+    end
+    local dir = Library:getFolders()[1] .. "/Notes"
+    if lfs.attributes(dir, "mode") ~= "directory" then lfs.mkdir(dir) end
+    local path = dir .. "/" .. name .. ".png"
+    local ok = pcall(bb.writePNG, bb, path)
+    bb:free()
+    return ok and path or nil
+end
+
 function StatsView.showYear(home, year)
     local MacaScreen = require("maca/screen")
     local UIManager = require("ui/uimanager")
@@ -363,6 +398,14 @@ function StatsView.showYear(home, year)
         if y < tonumber(os.date("%Y")) then
             actions[#actions + 1] = { icon = "forward", on_tap = function() load(y + 1) end }
         end
+        actions[#actions + 1] = { icon = "note", on_tap = function()
+            local InfoMessage = require("ui/widget/infomessage")
+            local path = StatsView.saveImage(StatsView.yearRows(screen:width(), y), screen:width(),
+                T(_("My %1 in reading"), y), "reading-" .. y)
+            UIManager:show(InfoMessage:new{
+                text = path and T(_("Saved to %1"), path) or _("Could not save the picture."),
+            })
+        end }
         screen:setHeader(T(_("%1 in review"), y), actions, function()
             Animator.transition({ kind = "uncover", dir = "right", duration = 0.22 }, function()
                 UIManager:close(screen)

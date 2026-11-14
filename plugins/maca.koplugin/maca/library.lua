@@ -42,6 +42,13 @@ local function isBook(path)
     return ext ~= nil and BOOK_EXTENSIONS[ext] == true and DocumentRegistry:hasProvider(path)
 end
 
+Library.isBook = function(path)
+    local lower = path:lower()
+    if lower:match("%.fb2%.zip$") or lower:match("%.kepub%.epub$") then return true end
+    local ext = lower:match("%.([%w]+)$")
+    return ext ~= nil and BOOK_EXTENSIONS[ext] == true
+end
+
 function Library:getFolders()
     local dirs = G_reader_settings:readSetting("maca_library_dirs")
     if type(dirs) == "table" and #dirs > 0 then

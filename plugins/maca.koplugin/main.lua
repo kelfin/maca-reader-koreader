@@ -67,6 +67,7 @@ function Maca:onMacaHome()
 end
 
 function Maca:onCloseDocument()
+    require("maca/speech"):stop()
     if self.opened_file then
         local file = self.opened_file
         -- sidecar is written while closing; refresh once that is done

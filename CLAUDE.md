@@ -6,7 +6,8 @@ Personal Android ebook reader (phone + tablet), forked from KOReader. Plan and p
 
 - `plugins/maca.koplugin/` — the Maca plugin. `main.lua` wires it in; everything else is under `maca/` and required as `maca/<module>` (the prefix avoids clashes with other plugins' module names).
   - UI: `home`, `screen`, `scrollview`, `rows`, `bookdetail`, `statsview`, `notebook`, `reader` (bars and display sheet), `theme`, `glass`, `animator`, `covers`.
-  - Data: `library` (index), `stats` (read-only statistics queries), `syncfolder`, `backup`, `defaults` (first-run settings).
+  - Data and services: `library` (index), `stats` (read-only statistics queries), `syncfolder`, `backup`, `defaults` (first-run settings), `speech` (read aloud), `assistant` (Claude API, user's own key), `wifiupload`.
+  - Android-only pieces call into the launcher fork through the `android` Lua module: `setHighRefreshRate`, `getRefreshRate`, `speechStart/Say/Stop/SetRate/Done`. They are absent in the emulator, so every caller checks for them first.
 - Core patches outside the plugin are deliberately few: `reader.lua` (loads `maca/defaults`), `frontend/fontlist.lua` (plugin fonts), `make/android.mk`.
 
 - `frontend/` — Lua UI and reader logic (upstream).

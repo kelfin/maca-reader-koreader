@@ -171,6 +171,90 @@ function painters.unwipe(bb, old, new, r, dir, p)
 end
 
 --[[--
+Start a transition that is driven by hand (a finger dragging a page).
+
+The change is made at once, hidden; the screen keeps showing the old state
+until the returned object is moved.
+
+@tparam table spec  kind, dir, rect as for Animator.transition
+@tparam function change  makes the change
+@tparam function changed  optional; returns false when the change did nothing
+@treturn table|nil  nil when animations are off, busy, or nothing changed.
+    Otherwise an object with:
+      move(p)             show the transition at progress p (0..1)
+      finish(commit, undo) animate to the end (commit) or back to the start;
+                          when going back, `undo` is called to reverse the change
+--]]--
+function Animator.drag(spec, change, changed)
+    if Animator.busy or not Animator.enabled() then return nil end
+    Animator.busy = true
+    local bb = Screen.bb
+    local old = bb:copy()
+    local ok, err = pcall(paintHidden, change)
+    if not ok or (changed and changed() == false) then
+        bb:blitFrom(old, 0, 0, 0, 0, old:getWidth(), old:getHeight())
+        old:free()
+        Animator.busy = false
+        if not ok then logger.warn("Maca drag: change failed:", err) end
+        return nil
+    end
+    local new = bb:copy()
+    local rect = spec.rect or fullRect()
+    local painter = painters[spec.kind]
+    local progress = 0
+    bb:blitFrom(old, 0, 0, 0, 0, old:getWidth(), old:getHeight())
+    local handle = {}
+
+    local function show(p)
+        progress = math.max(0, math.min(1, p))
+        painter(bb, old, new, rect, spec.dir, progress)
+        Screen:refreshUI(0, 0, Screen:getWidth(), Screen:getHeight())
+    end
+
+    function handle.move(p)
+        show(p)
+    end
+
+    function handle.progress()
+        return progress
+    end
+
+    function handle.finish(commit, undo)
+        local from, to = progress, commit and 1 or 0
+        local duration = 0.18 * math.abs(to - from) + 0.04
+        local frame_time = 1 / math.min(144, Animator.refreshRate())
+        local started = time.now()
+        while true do
+            local frame_start = time.now()
+            local t = time.to_s(frame_start - started) / duration
+            if t >= 1 then break end
+            show(from + (to - from) * easeOut(t))
+            local spent = time.to_s(time.now() - frame_start)
+            if spent < frame_time then
+                ffiUtil.usleep(math.floor((frame_time - spent) * 1e6))
+            end
+        end
+        if commit then
+            bb:blitFrom(new, 0, 0, 0, 0, new:getWidth(), new:getHeight())
+        else
+            -- put things back: reverse the change, hidden, then show the old picture
+            if undo then pcall(paintHidden, undo) end
+            bb:blitFrom(old, 0, 0, 0, 0, old:getWidth(), old:getHeight())
+        end
+        old:free()
+        new:free()
+        Screen:refreshUI(0, 0, Screen:getWidth(), Screen:getHeight())
+        Animator.busy = false
+        if not commit then
+            -- the widgets were repainted off-screen; make sure the real state is what shows
+            UIManager:setDirty("all", "ui")
+        end
+    end
+
+    return handle
+end
+
+--[[--
 Animate a change of the screen.
 
 @tparam table spec

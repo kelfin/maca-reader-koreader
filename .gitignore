@@ -42,3 +42,4 @@ i18n
 /.project
 .gitignore~
 /maca-reader-android-*.apk
+/.maca-dev/

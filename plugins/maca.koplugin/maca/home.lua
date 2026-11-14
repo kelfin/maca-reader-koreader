@@ -6,15 +6,15 @@ The Maca home screen: Home, Library, Stats and More tabs.
 
 local BD = require("ui/bidi")
 local ButtonDialog = require("ui/widget/buttondialog")
-local Covers = require("covers")
+local Covers = require("maca/covers")
 local Device = require("device")
 local Event = require("ui/event")
 local InputDialog = require("ui/widget/inputdialog")
-local Library = require("library")
-local MacaScreen = require("screen")
-local Rows = require("rows")
-local Stats = require("stats")
-local Theme = require("theme")
+local Library = require("maca/library")
+local MacaScreen = require("maca/screen")
+local Rows = require("maca/rows")
+local Stats = require("maca/stats")
+local Theme = require("maca/theme")
 local UIManager = require("ui/uimanager")
 local ffiUtil = require("ffi/util")
 local util = require("util")
@@ -115,7 +115,7 @@ function Home:rebuild(keep_offset)
         rows = self:libraryRows(w)
     elseif tab == "stats" then
         self:setHeader(_("Reading stats"))
-        rows = require("statsview").rows(self, w)
+        rows = require("maca/statsview").rows(self, w)
     else
         self:setHeader(_("More"))
         rows = self:moreRows(w)
@@ -136,7 +136,7 @@ function Home:openBook(entry)
 end
 
 function Home:showBook(entry)
-    local BookDetail = require("bookdetail")
+    local BookDetail = require("maca/bookdetail")
     UIManager:show(BookDetail:new{
         ui = self.ui,
         entry = entry,
@@ -228,7 +228,7 @@ function Home:homeRows(w)
     local wide = w >= dp(700)
     local current = Library:current()
     local today_card = function(cw)
-        return require("statsview").todayCard(self, cw, function() self:switchTab("stats") end)
+        return require("maca/statsview").todayCard(self, cw, function() self:switchTab("stats") end)
     end
     local hero
     if current then
@@ -406,17 +406,63 @@ end
 
 -- More tab ----------------------------------------------------------------
 
-function Home:chooseFolder()
+function Home:addFolder(replace)
     local PathChooser = require("ui/widget/pathchooser")
+    local folders = Library:getFolders()
     UIManager:show(PathChooser:new{
         select_directory = true,
         select_file = false,
-        path = Library:getFolders()[1],
+        path = folders[1],
         onConfirm = function(path)
-            Library:setFolders({ path })
+            local dirs = {}
+            if not replace then
+                for _, dir in ipairs(folders) do
+                    if dir ~= path then dirs[#dirs + 1] = dir end
+                end
+            end
+            dirs[#dirs + 1] = path
+            Library:setFolders(dirs)
             Library:extractPending(Covers.specs())
         end,
     })
+end
+
+-- First choice of a library folder replaces the guessed defaults.
+function Home:chooseFolder()
+    self:addFolder(not Library:foldersChosen())
+end
+
+function Home:manageFolders()
+    local folders = Library:getFolders()
+    local dialog
+    local buttons = {}
+    for _, dir in ipairs(folders) do
+        buttons[#buttons + 1] = { {
+            text = T(_("Remove %1"), BD.dirpath(dir)),
+            align = "left",
+            enabled = #folders > 1,
+            callback = function()
+                UIManager:close(dialog)
+                local dirs = {}
+                for _, other in ipairs(folders) do
+                    if other ~= dir then dirs[#dirs + 1] = other end
+                end
+                Library:setFolders(dirs)
+            end,
+        } }
+    end
+    buttons[#buttons + 1] = { {
+        text = _("Add a folder…"),
+        callback = function()
+            UIManager:close(dialog)
+            self:addFolder(false)
+        end,
+    } }
+    dialog = ButtonDialog:new{
+        title = _("Maca shows the books in these folders and the folders inside them."),
+        buttons = buttons,
+    }
+    UIManager:show(dialog)
 end
 
 function Home:setGoal()
@@ -447,8 +493,10 @@ function Home:moreRows(w)
     local rows = {}
     local folders = Library:getFolders()
     rows[#rows + 1] = Rows.section(_("Library"))
-    rows[#rows + 1] = Rows.item(w, "folder", _("Library folder"), nil, function() self:chooseFolder() end,
-        { sub = BD.dirpath(folders[1]) })
+    local folder_names = {}
+    for i, dir in ipairs(folders) do folder_names[i] = BD.dirpath(dir) end
+    rows[#rows + 1] = Rows.item(w, "folder", N_("Library folder", "Library folders", #folders), nil,
+        function() self:manageFolders() end, { sub = table.concat(folder_names, ", ") })
     rows[#rows + 1] = Rows.item(w, "sync", _("Rescan library"),
         T(N_("%1 book", "%1 books", #Library.books), #Library.books), function()
             Library:scan()

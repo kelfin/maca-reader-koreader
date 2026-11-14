@@ -26,9 +26,10 @@ function Maca:init()
     if self.ui.document then
         -- inside a book: remember it changed, so the library shows fresh progress
         self.opened_file = self.ui.document.file
+        require("maca/reader").hookStyles(self.ui)
         return
     end
-    local Home = require("home")
+    local Home = require("maca/home")
     if G_reader_settings:nilOrTrue("maca_home_on_start") and not Home.State.browsing then
         -- the file manager is still being set up: show once it is on screen
         UIManager:nextTick(function() self:showHome() end)
@@ -38,16 +39,20 @@ end
 function Maca:showHome()
     if self.ui.document then
         -- from a book, go back to the file manager; Maca opens on top of it
-        require("home").State.browsing = false
+        require("maca/home").State.browsing = false
         self.ui:onClose()
         self.ui:showFileManager()
         return
     end
-    local Home = require("home")
+    local Home = require("maca/home")
     if self.home and UIManager:isWidgetShown(self.home) then return end
     Home.State.browsing = false
     self.home = Home:new{ ui = self.ui }
     UIManager:show(self.home)
+end
+
+function Maca:onReaderReady()
+    require("maca/reader").setup(self.ui)
 end
 
 function Maca:onMacaHome()
@@ -60,7 +65,7 @@ function Maca:onCloseDocument()
         local file = self.opened_file
         -- sidecar is written while closing; refresh once that is done
         UIManager:nextTick(function()
-            require("library"):refreshBook(file)
+            require("maca/library"):refreshBook(file)
         end)
     end
 end

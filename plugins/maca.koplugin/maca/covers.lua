@@ -9,7 +9,7 @@ local Blitbuffer = require("ffi/blitbuffer")
 local BookInfoManager = require("bookinfomanager")
 local Device = require("device")
 local RenderImage = require("ui/renderimage")
-local Theme = require("theme")
+local Theme = require("maca/theme")
 local Screen = Device.screen
 
 local Covers = {

@@ -189,6 +189,12 @@ local UIManager = require("ui/uimanager")
 -- Apply developer patches
 userpatch.applyPatches(userpatch.late)
 
+-- Maca: first-run defaults, before the start screen is chosen.
+do
+    local ok, err = pcall(function() dofile("plugins/maca.koplugin/maca/defaults.lua").apply() end)
+    if not ok then require("logger").warn("Maca defaults not applied:", err) end
+end
+
 -- Inform once about color rendering on newly supported devices
 -- (there are some android devices that may not have a color screen,
 -- and we are not (yet?) able to guess that fact)

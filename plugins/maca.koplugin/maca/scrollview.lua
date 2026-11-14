@@ -15,7 +15,7 @@ A row is a table with:
 local Geom = require("ui/geometry")
 local GestureRange = require("ui/gesturerange")
 local InputContainer = require("ui/widget/container/inputcontainer")
-local Theme = require("theme")
+local Theme = require("maca/theme")
 local UIManager = require("ui/uimanager")
 local time = require("ui/time")
 

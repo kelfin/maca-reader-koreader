@@ -4,10 +4,10 @@ Reading dashboard: the "today" card on the home tab and the Stats tab.
 @module koplugin.maca.statsview
 --]]--
 
-local Library = require("library")
-local Rows = require("rows")
-local Stats = require("stats")
-local Theme = require("theme")
+local Library = require("maca/library")
+local Rows = require("maca/rows")
+local Stats = require("maca/stats")
+local Theme = require("maca/theme")
 local datetime = require("datetime")
 local ffiUtil = require("ffi/util")
 local _ = require("gettext")
@@ -350,7 +350,7 @@ function StatsView.yearRows(w, year)
 end
 
 function StatsView.showYear(home, year)
-    local MacaScreen = require("screen")
+    local MacaScreen = require("maca/screen")
     local UIManager = require("ui/uimanager")
     local screen
     local function load(y)

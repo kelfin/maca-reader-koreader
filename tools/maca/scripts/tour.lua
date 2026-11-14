@@ -1,8 +1,8 @@
 -- Walk through the Maca screens and save a screenshot of each.
 local H = MacaHarness
 local UIManager = require("ui/uimanager")
-local Home = require("home")
-local Library = require("library")
+local Home = require("maca/home")
+local Library = require("maca/library")
 local prefix = (os.getenv("MACA_DEVICE") or "phone") .. "-"
 
 local function home()

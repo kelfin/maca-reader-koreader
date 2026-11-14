@@ -27,6 +27,21 @@ local Library = {
 
 local MAX_DEPTH = 8
 
+-- KOReader can open far more than books (pictures, text, HTML, archives).
+-- Only these count as library books.
+local BOOK_EXTENSIONS = {
+    epub = true, kepub = true, pdf = true, djvu = true, djv = true, mobi = true, azw = true, azw3 = true,
+    prc = true, fb2 = true, fb3 = true, fbz = true, cbz = true, cbt = true, cb7 = true, cbr = true,
+    chm = true, docx = true, rtf = true, pdb = true, xps = true,
+}
+
+local function isBook(path)
+    local lower = path:lower()
+    if lower:match("%.fb2%.zip$") or lower:match("%.kepub%.epub$") then return true end
+    local ext = lower:match("%.([%w]+)$")
+    return ext ~= nil and BOOK_EXTENSIONS[ext] == true and DocumentRegistry:hasProvider(path)
+end
+
 function Library:getFolders()
     local dirs = G_reader_settings:readSetting("maca_library_dirs")
     if type(dirs) == "table" and #dirs > 0 then
@@ -34,7 +49,22 @@ function Library:getFolders()
     end
     local Device = require("device")
     local home = G_reader_settings:readSetting("home_dir") or Device.home_dir or lfs.currentdir()
+    if Device:isAndroid() and not G_reader_settings:has("home_dir") then
+        -- Shared storage holds far more than books; start with the usual places.
+        local usual = {}
+        for _, name in ipairs{ "Books", "eBooks", "Download", "Documents" } do
+            local path = home .. "/" .. name
+            if lfs.attributes(path, "mode") == "directory" then usual[#usual + 1] = path end
+        end
+        if #usual > 0 then return usual end
+    end
     return { home }
+end
+
+--- True once the user has picked library folders themselves.
+function Library:foldersChosen()
+    local dirs = G_reader_settings:readSetting("maca_library_dirs")
+    return type(dirs) == "table" and #dirs > 0
 end
 
 function Library:setFolders(dirs)
@@ -71,7 +101,7 @@ local function walk(dir, depth, out, seen)
                     if depth < MAX_DEPTH and not name:match("%.sdr$") then
                         walk(path, depth + 1, out, seen)
                     end
-                elseif attr.mode == "file" and DocumentRegistry:hasProvider(path) then
+                elseif attr.mode == "file" and isBook(path) then
                     out[#out + 1] = { file = path, size = attr.size, added = attr.modification }
                 end
             end

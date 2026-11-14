@@ -6,8 +6,8 @@ when scrolled far away.
 @module koplugin.maca.rows
 --]]--
 
-local Covers = require("covers")
-local Theme = require("theme")
+local Covers = require("maca/covers")
+local Theme = require("maca/theme")
 local dp = Theme.dp
 
 local Rows = {}

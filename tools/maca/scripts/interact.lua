@@ -4,7 +4,7 @@ local Event = require("ui/event")
 local Geom = require("ui/geometry")
 local UIManager = require("ui/uimanager")
 local time = require("ui/time")
-local Home = require("home")
+local Home = require("maca/home")
 local prefix = (os.getenv("MACA_DEVICE") or "phone") .. "-"
 
 local function home()
@@ -52,7 +52,7 @@ H.steps{
         H.shot(prefix .. "c-back-in-library")
         home():switchTab("home")
         UIManager:broadcastEvent(Event:new("ToggleNightMode"))
-        require("covers"):clear()
+        require("maca/covers"):clear()
         home():rebuild(true)
     end },
     { 0.6, function()

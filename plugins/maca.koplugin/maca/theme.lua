@@ -17,7 +17,7 @@ local Screen = Device.screen
 
 local Theme = {}
 
-local plugin_dir = debug.getinfo(1, "S").source:match("^@(.*)/[^/]*$") or "plugins/maca.koplugin"
+local plugin_dir = debug.getinfo(1, "S").source:match("^@(.*)/maca/[^/]*$") or "plugins/maca.koplugin"
 
 function Theme.dp(n)
     return math.floor(n * Screen:getDPI() / 160 + 0.5)

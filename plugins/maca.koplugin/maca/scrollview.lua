@@ -14,6 +14,7 @@ A row is a table with:
 
 local Geom = require("ui/geometry")
 local GestureRange = require("ui/gesturerange")
+local Animator = require("maca/animator")
 local InputContainer = require("ui/widget/container/inputcontainer")
 local Theme = require("maca/theme")
 local UIManager = require("ui/uimanager")
@@ -27,8 +28,7 @@ local ScrollView = InputContainer:extend{
     on_scroll = nil, -- function(offset)
 }
 
-local FRAME = 1 / 60
-local FRICTION = 0.94      -- velocity kept per frame
+local FRICTION_PER_SECOND = 0.025 -- share of velocity left after one second
 local MIN_VELOCITY = 40    -- px/s below which a fling stops
 
 function ScrollView:init()
@@ -255,15 +255,20 @@ function ScrollView:fling(velocity)
     self.velocity = math.max(-limit, math.min(limit, velocity))
     self.flinging = true
     self.moving = true
-    UIManager:scheduleIn(FRAME, self.fling_step)
+    self.fling_time = time.now()
+    UIManager:scheduleIn(Animator.frameTime(), self.fling_step)
 end
 
 function ScrollView:flingStep()
     if not self.flinging then return end
-    local moved = self:scrollTo(self.offset + self.velocity * FRAME)
-    self.velocity = self.velocity * FRICTION
+    -- time-based, so the motion is the same at 60, 120 or 144 Hz
+    local now = time.now()
+    local dt = math.min(0.05, time.to_s(now - self.fling_time))
+    self.fling_time = now
+    local moved = self:scrollTo(self.offset + self.velocity * dt)
+    self.velocity = self.velocity * FRICTION_PER_SECOND ^ dt
     if moved and math.abs(self.velocity) > MIN_VELOCITY then
-        UIManager:scheduleIn(FRAME, self.fling_step)
+        UIManager:scheduleIn(Animator.frameTime(), self.fling_step)
     else
         self.flinging = false
         self.moving = false

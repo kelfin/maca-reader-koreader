@@ -4,6 +4,7 @@ Book page: cover, description, progress, reading time and actions.
 @module koplugin.maca.bookdetail
 --]]--
 
+local Animator = require("maca/animator")
 local BD = require("ui/bidi")
 local BookList = require("ui/widget/booklist")
 local Covers = require("maca/covers")
@@ -31,7 +32,11 @@ local BookDetail = MacaScreen:extend{
 }
 
 function BookDetail:init()
-    self.on_back = function() UIManager:close(self) end
+    self.on_back = function()
+        Animator.transition({ kind = "uncover", dir = "right", duration = 0.22 }, function()
+            UIManager:close(self)
+        end)
+    end
     MacaScreen.init(self)
     self:rebuild()
 end

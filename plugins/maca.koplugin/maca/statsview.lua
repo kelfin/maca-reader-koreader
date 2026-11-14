@@ -4,6 +4,7 @@ Reading dashboard: the "today" card on the home tab and the Stats tab.
 @module koplugin.maca.statsview
 --]]--
 
+local Animator = require("maca/animator")
 local Library = require("maca/library")
 local Rows = require("maca/rows")
 local Stats = require("maca/stats")
@@ -362,7 +363,11 @@ function StatsView.showYear(home, year)
         if y < tonumber(os.date("%Y")) then
             actions[#actions + 1] = { icon = "forward", on_tap = function() load(y + 1) end }
         end
-        screen:setHeader(T(_("%1 in review"), y), actions, function() UIManager:close(screen) end)
+        screen:setHeader(T(_("%1 in review"), y), actions, function()
+            Animator.transition({ kind = "uncover", dir = "right", duration = 0.22 }, function()
+                UIManager:close(screen)
+            end)
+        end)
         local rows = StatsView.yearRows(screen:width(), y)
         rows[#rows + 1] = Rows.spacer(dp(24))
         screen.scroll.offset = 0
@@ -371,7 +376,9 @@ function StatsView.showYear(home, year)
     end
     screen = MacaScreen:new{}
     load(year)
-    UIManager:show(screen)
+    Animator.transition({ kind = "cover", dir = "left", duration = 0.24 }, function()
+        UIManager:show(screen)
+    end)
 end
 
 return StatsView

@@ -5,6 +5,7 @@ the page, and a display sheet ("Aa") with the settings people change most.
 @module koplugin.maca.reader
 --]]--
 
+local Animator = require("maca/animator")
 local ButtonDialog = require("ui/widget/buttondialog")
 local Device = require("device")
 local Event = require("ui/event")
@@ -174,12 +175,27 @@ function Bars:refresh()
     UIManager:setDirty(self, function() return "ui", self.dimen end)
 end
 
-function Bars:close()
-    UIManager:close(self)
+function Bars:parts(kind)
+    local w, h = self.dimen.w, self.dimen.h
+    return {
+        { kind = kind, dir = kind == "cover" and "down" or "up", rect = { x = 0, y = 0, w = w, h = self.top_h } },
+        { kind = kind, dir = kind == "cover" and "up" or "down",
+          rect = { x = 0, y = h - self.bottom_h, w = w, h = self.bottom_h } },
+    }
+end
+
+function Bars:close(instant)
+    if instant then
+        UIManager:close(self)
+        return
+    end
+    Animator.transition({ parts = self:parts("uncover"), duration = 0.16 }, function()
+        UIManager:close(self)
+    end)
 end
 
 function Bars:onClose()
-    self:close()
+    self:close(true)
     return true
 end
 
@@ -217,11 +233,11 @@ function Bars:paintTo(bb, x, y)
             self:refresh()
         end },
         { "search", "search", function()
-            self:close()
+            self:close(true)
             ui:handleEvent(Event:new("ShowFulltextSearchInput"))
         end },
         { "toc", "contents", function()
-            self:close()
+            self:close(true)
             ui:handleEvent(Event:new("ShowToc"))
         end },
     }
@@ -358,8 +374,8 @@ function Bars:onHold()
 end
 
 function Bars:showDisplay()
-    self:close()
-    UIManager:show(Reader.Sheet:new{ ui = self.ui })
+    self:close(true)
+    Reader.Sheet.open(self.ui)
 end
 
 function Bars:showMore()
@@ -371,7 +387,7 @@ function Bars:showMore()
             align = "left",
             callback = function()
                 UIManager:close(dialog)
-                self:close()
+                self:close(true)
                 fn()
             end,
         } }
@@ -396,8 +412,8 @@ local Sheet = InputContainer:extend{
 }
 
 local PREFERRED_FONTS = {
-    "Literata", "Bitter", "Noto Serif", "Source Serif 4", "Crimson Pro", "Merriweather",
-    "Atkinson Hyperlegible", "Noto Sans", "Lexend",
+    "Noto Serif", "Crimson Text", "PT Serif", "Libre Baskerville", "Literata", "Bitter",
+    "Atkinson Hyperlegible", "Noto Sans",
 }
 
 local function availableFonts(ui)
@@ -460,8 +476,34 @@ function Sheet:refresh()
     UIManager:setDirty("all", function() return "ui", self.dimen end)
 end
 
+function Sheet.open(ui)
+    local sheet = Sheet:new{ ui = ui }
+    local w, h = sheet.dimen.w, sheet.dimen.h
+    Animator.transition({
+        kind = "cover", dir = "up", duration = 0.2,
+        rect = { x = math.floor((w - sheet.sheet_w) / 2), y = h - sheet.sheet_h, w = sheet.sheet_w, h = sheet.sheet_h },
+    }, function()
+        UIManager:show(sheet)
+    end)
+    return sheet
+end
+
+function Sheet:dismiss()
+    local r = self.sheet_rect
+    if not r then
+        UIManager:close(self)
+        return
+    end
+    Animator.transition({
+        kind = "uncover", dir = "down", duration = 0.18,
+        rect = { x = r.x, y = r.y, w = r.w, h = self.dimen.h - r.y },
+    }, function()
+        UIManager:close(self)
+    end)
+end
+
 function Sheet:onClose()
-    UIManager:close(self)
+    self:dismiss()
     return true
 end
 
@@ -673,7 +715,7 @@ end
 function Sheet:onTap(_, ges)
     local r = self.sheet_rect
     if not r or ges.pos.y < r.y or ges.pos.x < r.x or ges.pos.x > r.x + r.w then
-        UIManager:close(self)
+        self:dismiss()
         return true
     end
     if self:inBrightness(ges.pos) then
@@ -703,7 +745,7 @@ function Sheet:onSwipe(_, ges)
     if self.dragging then
         self.dragging = false
     elseif ges.direction == "south" then
-        UIManager:close(self)
+        self:dismiss()
     end
     return true
 end
@@ -716,12 +758,39 @@ Reader.Sheet = Sheet
 
 -- Wiring --------------------------------------------------------------------
 
+--- Slide between pages when turning them one screen at a time.
+function Reader.animatePageTurns(ui)
+    local module = ui.rolling or ui.paging
+    if not module or module.maca_animated then return end
+    module.maca_animated = true
+    local turn = module.onGotoViewRel
+    module.onGotoViewRel = function(this, diff)
+        local scrolling = ui.view and ui.view.view_mode == "scroll" or ui.view and ui.view.page_scroll
+        if scrolling or not G_reader_settings:nilOrTrue("maca_page_animation") then
+            return turn(this, diff)
+        end
+        local before = ui:getCurrentPage()
+        local result
+        Animator.transition({
+            kind = "slide", dir = diff > 0 and "left" or "right", duration = 0.2,
+            changed = function() return ui:getCurrentPage() ~= before end,
+        }, function()
+            result = turn(this, diff)
+        end)
+        return result
+    end
+end
+
 --- Register the tap zones that open the bars. Call once the reader is ready.
 function Reader.setup(ui)
     local function show()
-        UIManager:show(Bars:new{ ui = ui })
+        local bars = Bars:new{ ui = ui }
+        Animator.transition({ parts = bars:parts("cover"), duration = 0.16 }, function()
+            UIManager:show(bars)
+        end)
         return true
     end
+    Reader.animatePageTurns(ui)
     ui:registerTouchZones({
         {
             id = "maca_bars_centre",

@@ -25,6 +25,7 @@ run phone seed
 run phone tour
 run phone interact
 run phone reader
+run phone animate
 run tablet tour
 run tablet reader
 if [ "$failed" -ne 0 ]; then

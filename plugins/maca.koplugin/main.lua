@@ -29,6 +29,7 @@ function Maca:init()
         require("maca/reader").hookStyles(self.ui)
         return
     end
+    require("maca/animator").applyRefreshRate()
     local Home = require("maca/home")
     if G_reader_settings:nilOrTrue("maca_home_on_start") and not Home.State.browsing then
         -- the file manager is still being set up: show once it is on screen

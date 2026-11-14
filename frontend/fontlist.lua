@@ -208,6 +208,8 @@ function FontList:getFontList()
     local mark = { cache_dirty = false }
 
     self:_readList(self.fontdir, mark)
+    -- Maca: reading fonts shipped with the Maca plugin
+    self:_readList("./plugins/maca.koplugin/fonts", mark)
     -- multiple paths should be joined with semicolon
     for dir in string.gmatch(getExternalFontDir() or "", "[^;]+") do
         self:_readList(dir, mark)

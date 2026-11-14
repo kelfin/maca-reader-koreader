@@ -4,6 +4,7 @@ The Maca home screen: Home, Library, Stats and More tabs.
 @module koplugin.maca.home
 --]]--
 
+local Animator = require("maca/animator")
 local BD = require("ui/bidi")
 local ButtonDialog = require("ui/widget/buttondialog")
 local Covers = require("maca/covers")
@@ -99,9 +100,20 @@ function Home:switchTab(key)
         end
         return
     end
-    State.tab = key
-    self.nav_active = key
-    self:rebuild(true)
+    local function index(tab)
+        for i, item in ipairs(self.nav) do
+            if item.key == tab then return i end
+        end
+    end
+    local forward = index(key) > index(State.tab)
+    Animator.transition({
+        kind = "slide", dir = forward and "left" or "right", duration = 0.2,
+        rect = { x = 0, y = self.header_h, w = self.dimen.w, h = self.dimen.h - self.header_h - self.nav_h },
+    }, function()
+        State.tab = key
+        self.nav_active = key
+        self:rebuild(true)
+    end)
 end
 
 function Home:rebuild(keep_offset)
@@ -137,12 +149,14 @@ end
 
 function Home:showBook(entry)
     local BookDetail = require("maca/bookdetail")
-    UIManager:show(BookDetail:new{
-        ui = self.ui,
-        entry = entry,
-        on_open = function() self:openBook(entry) end,
-        on_change = function() self:rebuild(true) end,
-    })
+    Animator.transition({ kind = "cover", dir = "left", duration = 0.24 }, function()
+        UIManager:show(BookDetail:new{
+            ui = self.ui,
+            entry = entry,
+            on_open = function() self:openBook(entry) end,
+            on_change = function() self:rebuild(true) end,
+        })
+    end)
 end
 
 function Home:search()
@@ -293,8 +307,10 @@ function Home:libraryRows(w)
     -- header
     if State.drill then
         self:setHeader(State.drill.value, nil, function()
-            State.drill = nil
-            self:rebuild()
+            Animator.transition({ kind = "uncover", dir = "right", duration = 0.22 }, function()
+                State.drill = nil
+                self:rebuild()
+            end)
         end)
     elseif State.search then
         self:setHeader(T(_("“%1”"), State.search), { { icon = "close", on_tap = function()
@@ -370,8 +386,10 @@ function Home:libraryRows(w)
         for _, group in ipairs(groups) do
             rows[#rows + 1] = Rows.item(w, State.group == "folder" and "folder" or "library", group.name,
                 tostring(#group.books), function()
-                    State.drill = { key = State.group, value = group.name }
-                    self:rebuild()
+                    Animator.transition({ kind = "cover", dir = "left", duration = 0.22 }, function()
+                        State.drill = { key = State.group, value = group.name }
+                        self:rebuild()
+                    end)
                 end)
         end
         if #groups == 0 then
@@ -514,12 +532,78 @@ function Home:moreRows(w)
             self:rebuild(true)
         end, { no_chevron = true })
 
+    local kosync = self.ui.kosync
+    if kosync and kosync.settings then
+        local settings = kosync.settings
+        local function save()
+            G_reader_settings:saveSetting("kosync", settings)
+            self:rebuild(true)
+        end
+        -- the plugin refreshes "its menu" after logging in or out; use that to refresh ours
+        local on_account_change = { updateItems = function()
+            if settings.userkey then settings.auto_sync = true end
+            save()
+        end }
+        rows[#rows + 1] = Rows.section(_("Sync between devices"))
+        if settings.userkey then
+            rows[#rows + 1] = Rows.item(w, "sync", _("Reading position"), settings.username, function()
+                self:pick(T(_("Signed in as %1"), settings.username), { { "logout", _("Sign out") } }, nil,
+                    function() kosync:logout(on_account_change) end)
+            end, { sub = _("Pick up on one device where you stopped on another") })
+            rows[#rows + 1] = Rows.item(w, "check", _("Sync automatically"),
+                settings.auto_sync and _("On") or _("Off"), function()
+                    settings.auto_sync = not settings.auto_sync
+                    save()
+                end, { no_chevron = true })
+        else
+            rows[#rows + 1] = Rows.item(w, "sync", _("Reading position"), _("Off"), function()
+                kosync:login(on_account_change)
+            end, { sub = _("Sign in or register to continue a book on another device") })
+        end
+        rows[#rows + 1] = Rows.item(w, "settings", _("Sync server"),
+            settings.custom_server or _("Default"), function()
+                local dialog
+                dialog = InputDialog:new{
+                    title = _("Sync server address"),
+                    description = _("Leave empty to use the public KOReader sync server."),
+                    input = settings.custom_server or "https://",
+                    buttons = { {
+                        { text = _("Cancel"), id = "close", callback = function() UIManager:close(dialog) end },
+                        { text = _("Save"), is_enter_default = true, callback = function()
+                            local address = util.trim(dialog:getInputText())
+                            UIManager:close(dialog)
+                            if address == "https://" then address = "" end
+                            kosync:setCustomServer(address)
+                            save()
+                        end },
+                    } },
+                }
+                UIManager:show(dialog)
+                dialog:onShowKeyboard()
+            end)
+    end
+
     rows[#rows + 1] = Rows.section(_("App"))
     rows[#rows + 1] = Rows.item(w, "home", _("Open Maca when the app starts"),
         G_reader_settings:nilOrTrue("maca_home_on_start") and _("On") or _("Off"), function()
             G_reader_settings:flipNilOrTrue("maca_home_on_start")
             self:rebuild(true)
         end, { no_chevron = true })
+    rows[#rows + 1] = Rows.item(w, "forward", _("Animations"),
+        Animator.enabled() and _("On") or _("Off"), function()
+            G_reader_settings:saveSetting("maca_animations", not Animator.enabled())
+            self:rebuild(true)
+        end, { no_chevron = true, sub = _("Sliding pages, screens and panels") })
+    if Animator.canSetRefreshRate() then
+        rows[#rows + 1] = Rows.item(w, "flame", _("High refresh rate"),
+            G_reader_settings:nilOrTrue("maca_high_refresh") and T(_("On · %1 Hz"), Animator.refreshRate()) or _("Off"),
+            function()
+                G_reader_settings:flipNilOrTrue("maca_high_refresh")
+                Animator.applyRefreshRate()
+                -- the display needs a moment to switch before we can read the new rate
+                UIManager:scheduleIn(0.6, function() self:rebuild(true) end)
+            end, { no_chevron = true, sub = _("Smoother motion; uses a little more battery") })
+    end
     rows[#rows + 1] = Rows.item(w, "settings", _("All settings"), nil, function()
         self.ui.menu:onShowMenu()
     end, { sub = _("The full KOReader menu") })

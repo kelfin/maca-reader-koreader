@@ -108,7 +108,7 @@ function Home:switchTab(key)
     local forward = index(key) > index(State.tab)
     Animator.transition({
         kind = "slide", dir = forward and "left" or "right", duration = 0.2,
-        rect = { x = 0, y = self.header_h, w = self.dimen.w, h = self.dimen.h - self.header_h - self.nav_h },
+        rect = self:bodyRect(),
     }, function()
         State.tab = key
         self.nav_active = key
@@ -132,11 +132,29 @@ function Home:rebuild(keep_offset)
         self:setHeader(_("More"))
         rows = self:moreRows(w)
     end
-    rows[#rows + 1] = Rows.spacer(dp(24))
     self.scroll.offset = keep_offset and (State.offsets[tab] or 0) or 0
-    self.scroll:setRows(rows, true)
+    self.scroll.background = tab == "home" and self:ambientWash() or nil
+    self:setRows(rows, true)
     State.offsets[tab] = self.scroll.offset
     self:redraw()
+end
+
+-- A soft wash of the current book's colour behind the top of the home tab.
+function Home:ambientWash()
+    local current = Library.scanned and Library:current()
+    local tint = current and Covers:tint(current)
+    if not tint then return nil end
+    local height = dp(300)
+    local bands = 30
+    local band_h = math.ceil(height / bands)
+    return function(bb, x, y, w, h, offset)
+        if offset >= height then return end
+        for i = 0, bands - 1 do
+            local strength = 0.30 * (1 - i / bands) ^ 1.6
+            Theme.fillRect(bb, x, y + i * band_h - offset, w, band_h,
+                Theme.mix(tint[1], tint[2], tint[3], strength))
+        end
+    end
 end
 
 -- Actions -----------------------------------------------------------------
@@ -252,6 +270,7 @@ function Home:homeRows(w)
         hero = function(cw)
             return Rows.hero(cw, current, {
                 label = _("CONTINUE READING"), detail = detail, on_tap = on_tap, on_hold = on_hold,
+                glass = true,
             })
         end
     end
@@ -604,6 +623,11 @@ function Home:moreRows(w)
                 UIManager:scheduleIn(0.6, function() self:rebuild(true) end)
             end, { no_chevron = true, sub = _("Smoother motion; uses a little more battery") })
     end
+    rows[#rows + 1] = Rows.item(w, "theme", _("Glass effects"),
+        G_reader_settings:nilOrTrue("maca_glass") and _("On") or _("Off"), function()
+            G_reader_settings:flipNilOrTrue("maca_glass")
+            self:rebuild(true)
+        end, { no_chevron = true, sub = _("Frosted bars and panels; turn off if scrolling stutters") })
     rows[#rows + 1] = Rows.item(w, "settings", _("All settings"), nil, function()
         self.ui.menu:onShowMenu()
     end, { sub = _("The full KOReader menu") })

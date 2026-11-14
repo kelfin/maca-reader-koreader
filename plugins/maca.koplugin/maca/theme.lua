@@ -37,7 +37,7 @@ Theme.FG = Blitbuffer.COLOR_BLACK
 Theme.MUTED = Blitbuffer.Color8(0x6A)
 Theme.FAINT = Blitbuffer.Color8(0x9A)
 Theme.LINE = Blitbuffer.Color8(0xE2)
-Theme.CARD = Blitbuffer.Color8(0xF3)
+Theme.CARD = Blitbuffer.Color8(0xF2)
 Theme.TRACK = Blitbuffer.Color8(0xDC)
 
 local ACCENT = { 0x1E, 0x7B, 0x5E }
@@ -69,6 +69,16 @@ function Theme.accentTint(strength)
     end
     local function mix(c) return math.floor(255 - (255 - c) * strength + 0.5) end
     return Blitbuffer.ColorRGB32(mix(ACCENT[1]), mix(ACCENT[2]), mix(ACCENT[3]), 0xFF)
+end
+
+--- (r, g, b) mixed with the background; strength 0 (background) to 1 (the colour).
+function Theme.mix(r, g, b, strength)
+    if Screen.night_mode then
+        local function mix(c) return 255 - math.floor(c * strength * 0.6 + 0.5) end
+        return Blitbuffer.ColorRGB32(mix(r), mix(g), mix(b), 0xFF)
+    end
+    local function mix(c) return math.floor(255 - (255 - c) * strength + 0.5) end
+    return Blitbuffer.ColorRGB32(mix(r), mix(g), mix(b), 0xFF)
 end
 
 function Theme.fillRect(bb, x, y, w, h, color, radius)
@@ -134,6 +144,51 @@ function Theme.textBox(str, size, width, max_lines, opts)
         end
     end
     return box
+end
+
+--- Word-wrapped text with a transparent background (TextBoxWidget is opaque).
+-- Returns an object with paintTo(bb, x, y), getSize() and free().
+function Theme.wrapped(str, size, width, max_lines, opts)
+    opts = opts or {}
+    local RenderText = require("ui/rendertext")
+    local face = Theme.face(size, opts.font)
+    local function measure(text)
+        return RenderText:sizeUtf8Text(0, Screen:getWidth() * 4, face, text, true, opts.bold).x
+    end
+    local lines, line = {}, nil
+    for word in tostring(str or ""):gmatch("%S+") do
+        local candidate = line and (line .. " " .. word) or word
+        if line and measure(candidate) > width then
+            lines[#lines + 1] = line
+            line = word
+        else
+            line = candidate
+        end
+    end
+    if line then lines[#lines + 1] = line end
+    max_lines = max_lines or #lines
+    if #lines > max_lines then
+        -- keep what fits; the last line carries the rest and is cut with an ellipsis
+        lines[max_lines] = table.concat(lines, " ", max_lines)
+        for i = #lines, max_lines + 1, -1 do lines[i] = nil end
+    end
+    local widgets, height, line_h = {}, 0, 0
+    for i, text in ipairs(lines) do
+        widgets[i] = Theme.text(text, size, { bold = opts.bold, color = opts.color, font = opts.font, max_width = width })
+        line_h = widgets[i]:getSize().h
+        height = height + line_h
+    end
+    return {
+        paintTo = function(_, bb, x, y)
+            for i, widget in ipairs(widgets) do
+                widget:paintTo(bb, x, y + (i - 1) * line_h)
+            end
+        end,
+        getSize = function() return { w = width, h = height } end,
+        free = function()
+            for _, widget in ipairs(widgets) do widget:free() end
+        end,
+    }
 end
 
 --- Line icon from the plugin's icons folder, `size` in pixels.

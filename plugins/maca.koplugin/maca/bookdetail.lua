@@ -218,10 +218,8 @@ function BookDetail:rebuild(keep_offset)
             Library:scan()
         end)
     end, { no_chevron = true, no_line = true })
-    rows[#rows + 1] = Rows.spacer(dp(24))
-
     if not keep_offset then self.scroll.offset = 0 end
-    self.scroll:setRows(rows, true)
+    self:setRows(rows, true)
     self:redraw()
 end
 

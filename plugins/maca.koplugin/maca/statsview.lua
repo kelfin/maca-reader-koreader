@@ -369,9 +369,8 @@ function StatsView.showYear(home, year)
             end)
         end)
         local rows = StatsView.yearRows(screen:width(), y)
-        rows[#rows + 1] = Rows.spacer(dp(24))
         screen.scroll.offset = 0
-        screen.scroll:setRows(rows)
+        screen:setRows(rows)
         screen:redraw()
     end
     screen = MacaScreen:new{}

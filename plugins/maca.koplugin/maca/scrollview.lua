@@ -26,6 +26,9 @@ local ScrollView = InputContainer:extend{
     offset = 0,
     show_parent = nil,
     on_scroll = nil, -- function(offset)
+    touch_top = 0,    -- strips at the top and bottom that belong to bars floating
+    touch_bottom = 0, -- over the list: touches there are not ours
+    background = nil, -- optional function(bb, x, y, w, h, offset), painted under the rows
 }
 
 local FRICTION_PER_SECOND = 0.025 -- share of velocity left after one second
@@ -34,7 +37,12 @@ local MIN_VELOCITY = 40    -- px/s below which a fling stops
 function ScrollView:init()
     self.rows = self.rows or {}
     self.live = {}
-    local range = function() return self.dimen end
+    local range = function()
+        return Geom:new{
+            x = self.dimen.x, y = self.dimen.y + self.touch_top,
+            w = self.dimen.w, h = self.dimen.h - self.touch_top - self.touch_bottom,
+        }
+    end
     self.ges_events = {
         Tap = { GestureRange:new{ ges = "tap", range = range } },
         Hold = { GestureRange:new{ ges = "hold", range = range } },
@@ -124,6 +132,9 @@ function ScrollView:paintTo(bb, x, y)
     self.dimen.x, self.dimen.y = x, y
     local w, h = self.dimen.w, self.dimen.h
     bb:paintRect(x, y, w, h, Theme.BG)
+    if self.background then
+        self.background(bb, x, y, w, h, self.offset)
+    end
     local _, first = self:rowAt(self.offset)
     if first then
         for i = first, #self.rows do
@@ -145,8 +156,9 @@ function ScrollView:paintTo(bb, x, y)
     -- position indicator, only while content is moving
     if self.moving and self.content_h > h then
         local bar_h = math.max(Theme.dp(24), math.floor(h * h / self.content_h))
-        local bar_y = math.floor((h - bar_h) * self.offset / self:maxOffset())
-        bb:paintRect(x + w - Theme.dp(4), y + bar_y, Theme.dp(3), bar_h, Theme.FAINT)
+        local track = h - self.touch_top - self.touch_bottom
+        local bar_y = self.touch_top + math.floor((track - bar_h) * self.offset / self:maxOffset())
+        bb:paintRect(x + w - Theme.dp(4), y + bar_y, Theme.dp(3), math.min(bar_h, track), Theme.FAINT)
     end
 end
 

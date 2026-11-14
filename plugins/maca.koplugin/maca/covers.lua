@@ -103,6 +103,30 @@ local function render(entry, w, h)
     return bb
 end
 
+--- Average colour of a book's cover as { r, g, b }, or nil without a cover.
+function Covers:tint(entry)
+    if not entry.has_cover then return nil end
+    self.tints = self.tints or {}
+    local tint = self.tints[entry.file]
+    if tint == nil then
+        tint = false
+        local ok, bb = pcall(render, entry, 6, 9)
+        if ok and bb then
+            local r, g, b, n = 0, 0, 0, 0
+            for py = 0, bb:getHeight() - 1 do
+                for px = 0, bb:getWidth() - 1 do
+                    local c = bb:getPixel(px, py):getColorRGB32()
+                    r, g, b, n = r + c.r, g + c.g, b + c.b, n + 1
+                end
+            end
+            bb:free()
+            if n > 0 then tint = { math.floor(r / n), math.floor(g / n), math.floor(b / n) } end
+        end
+        self.tints[entry.file] = tint
+    end
+    return tint or nil
+end
+
 --- Paint the cover of a book entry at (x, y), sized w x h.
 function Covers:paint(bb, x, y, w, h, entry)
     local key = entry.file .. "|" .. w .. "x" .. h .. (entry.has_cover and "c" or "p")

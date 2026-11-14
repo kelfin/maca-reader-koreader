@@ -107,13 +107,21 @@ function Rows.hero(w, entry, opts)
         h = card_h + dp(8),
         paint = function(row, bb, x, y)
             local card_x, card_w = x + M, w - 2 * M
-            Theme.fillRect(bb, card_x, y, card_w, card_h, Theme.CARD, dp(14))
+            local card_bg = Theme.CARD
+            if opts.glass and require("maca/glass").enabled() then
+                -- glass card over the page's colour wash
+                require("maca/glass").panel(bb, card_x, y, card_w, card_h, dp(22), { strength = 0.5 })
+                card_bg = nil
+            else
+                Theme.fillRect(bb, card_x, y, card_w, card_h, Theme.CARD, dp(22))
+            end
+            row.card_bg = card_bg
             Covers:paint(bb, card_x + pad, y + pad, cover_w, cover_h, entry)
             local tx = card_x + pad + cover_w + pad
             local tw = card_w - cover_w - 3 * pad
             if not row.built then
                 row.label = keep(row, Theme.text(opts.label, 11.5, { bold = true, color = Theme.MUTED, max_width = tw }))
-                row.title = keep(row, Theme.textBox(entry.title or "", 19, tw, 3, { bold = true, bgcolor = Theme.CARD }))
+                row.title = keep(row, Theme.wrapped(entry.title or "", 19, tw, 3, { bold = true }))
                 if entry.author then
                     row.author = keep(row, Theme.text(entry.author, 14.5, { color = Theme.MUTED, max_width = tw }))
                 end

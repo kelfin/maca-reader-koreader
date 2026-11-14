@@ -10,6 +10,7 @@ local ButtonDialog = require("ui/widget/buttondialog")
 local Device = require("device")
 local Event = require("ui/event")
 local Geom = require("ui/geometry")
+local Glass = require("maca/glass")
 local GestureRange = require("ui/gesturerange")
 local InputContainer = require("ui/widget/container/inputcontainer")
 local Theme = require("maca/theme")
@@ -145,8 +146,9 @@ local Bars = InputContainer:extend{
 
 function Bars:init()
     self.dimen = Geom:new{ x = 0, y = 0, w = Screen:getWidth(), h = Screen:getHeight() }
-    self.top_h = dp(56)
-    self.bottom_h = dp(104)
+    self.margin = dp(10)
+    self.top_h = dp(52)
+    self.bottom_h = dp(100)
     self.widgets = {}
     self.hits = {}
     local range = self.dimen
@@ -175,12 +177,20 @@ function Bars:refresh()
     UIManager:setDirty(self, function() return "ui", self.dimen end)
 end
 
+-- The two floating panels, in screen coordinates.
+function Bars:panels()
+    local w, h, m = self.dimen.w, self.dimen.h, self.margin
+    local pw = math.min(w - 2 * m, dp(620))
+    local px = math.floor((w - pw) / 2)
+    return { x = px, y = m, w = pw, h = self.top_h },
+        { x = px, y = h - m - self.bottom_h, w = pw, h = self.bottom_h }
+end
+
 function Bars:parts(kind)
-    local w, h = self.dimen.w, self.dimen.h
+    local top, bottom = self:panels()
     return {
-        { kind = kind, dir = kind == "cover" and "down" or "up", rect = { x = 0, y = 0, w = w, h = self.top_h } },
-        { kind = kind, dir = kind == "cover" and "up" or "down",
-          rect = { x = 0, y = h - self.bottom_h, w = w, h = self.bottom_h } },
+        { kind = kind, dir = kind == "wipe" and "down" or "up", rect = top },
+        { kind = kind, dir = kind == "wipe" and "up" or "down", rect = bottom },
     }
 end
 
@@ -189,7 +199,7 @@ function Bars:close(instant)
         UIManager:close(self)
         return
     end
-    Animator.transition({ parts = self:parts("uncover"), duration = 0.16 }, function()
+    Animator.transition({ parts = self:parts("unwipe"), duration = 0.16 }, function()
         UIManager:close(self)
     end)
 end
@@ -206,22 +216,22 @@ end
 
 function Bars:paintTo(bb, x, y)
     self.hits = {}
-    local w, h = self.dimen.w, self.dimen.h
     local ws = self.widgets
     local ui = self.ui
     local icon_size = dp(24)
-    local slot = dp(48)
+    local slot = dp(46)
+    local top, bottom = self:panels()
 
-    -- top bar
-    bb:paintRect(x, y, w, self.top_h, Theme.BG)
-    bb:paintRect(x, y + self.top_h - 1, w, 1, Theme.LINE)
+    -- top panel
+    local tx, ty, tw, th = x + top.x, y + top.y, top.w, top.h
+    Glass.panel(bb, tx, ty, tw, th, math.floor(th / 2), { strength = 0.74 })
     local function icon(key, name, ix, fn)
         ws[key] = ws[key] or Theme.icon(name, icon_size)
-        ws[key]:paintTo(bb, ix + math.floor((slot - icon_size) / 2), y + math.floor((self.top_h - icon_size) / 2))
-        hit(self, ix, y, slot, self.top_h, fn)
+        ws[key]:paintTo(bb, ix + math.floor((slot - icon_size) / 2), ty + math.floor((th - icon_size) / 2))
+        hit(self, ix, ty - self.margin, slot, th + 2 * self.margin, fn)
     end
-    icon("back", "back", x + dp(4), function()
-        self:close()
+    icon("back", "back", tx + dp(6), function()
+        self:close(true)
         ui:handleEvent(Event:new("Home"))
     end)
     local bookmarked = ui.bookmark and ui.bookmark:isPageBookmarked()
@@ -241,24 +251,23 @@ function Bars:paintTo(bb, x, y)
             ui:handleEvent(Event:new("ShowToc"))
         end },
     }
-    local ix = x + w - dp(4)
+    local ix = tx + tw - dp(6)
     for _, item in ipairs(items) do
         ix = ix - slot
         icon(item[1], item[2], ix, item[3])
     end
-    local title_x = x + dp(4) + slot + dp(4)
+    local title_x = tx + dp(6) + slot + dp(2)
     local title_w = ix - title_x - dp(8)
     if title_w > dp(90) then
         local props = ui.doc_props or {}
-        ws.title = ws.title or Theme.text(props.display_title or "", 16, { bold = true, max_width = title_w })
-        ws.title:paintTo(bb, title_x, y + math.floor((self.top_h - ws.title:getSize().h) / 2))
+        ws.title = ws.title or Theme.text(props.display_title or "", 15.5, { bold = true, max_width = title_w })
+        ws.title:paintTo(bb, title_x, ty + math.floor((th - ws.title:getSize().h) / 2))
     end
 
-    -- bottom bar
-    local by = y + h - self.bottom_h
-    bb:paintRect(x, by, w, self.bottom_h, Theme.BG)
-    bb:paintRect(x, by, w, 1, Theme.LINE)
-    local margin = dp(20)
+    -- bottom panel
+    local bx, by, bw, bh = x + bottom.x, y + bottom.y, bottom.w, bottom.h
+    Glass.panel(bb, bx, by, bw, bh, dp(26), { strength = 0.74 })
+    local margin = dp(22)
     local page, count = pageInfo(ui)
     local shown_page = self.seek_page or page
     local fraction = count > 1 and (shown_page - 1) / (count - 1) or 0
@@ -269,11 +278,11 @@ function Bars:paintTo(bb, x, y)
     end
     self.chapter_text = chapter
     if chapter ~= "" then
-        ws.chapter = ws.chapter or Theme.text(chapter, 13.5, { color = Theme.MUTED, max_width = w - 2 * margin })
-        ws.chapter:paintTo(bb, x + math.floor((w - ws.chapter:getSize().w) / 2), by + dp(12))
+        ws.chapter = ws.chapter or Theme.text(chapter, 13.5, { color = Theme.MUTED, max_width = bw - 2 * margin })
+        ws.chapter:paintTo(bb, bx + math.floor((bw - ws.chapter:getSize().w) / 2), by + dp(12))
     end
     local slider_y = by + dp(50)
-    self.slider = { x = x + margin, w = w - 2 * margin, y = slider_y }
+    self.slider = { x = bx + margin, w = bw - 2 * margin, y = slider_y }
     paintSlider(bb, self.slider.x, slider_y, self.slider.w, fraction)
 
     local left = T(_("Page %1 of %2"), shown_page, count)
@@ -294,8 +303,8 @@ function Bars:paintTo(bb, x, y)
     -- these change as the slider moves, so they are rebuilt on each paint
     local left_widget = Theme.text(left, 13, { color = Theme.MUTED })
     local right_widget = Theme.text(right, 13, { color = Theme.MUTED })
-    left_widget:paintTo(bb, x + margin, by + dp(70))
-    right_widget:paintTo(bb, x + w - margin - right_widget:getSize().w, by + dp(70))
+    left_widget:paintTo(bb, bx + margin, by + dp(68))
+    right_widget:paintTo(bb, bx + bw - margin - right_widget:getSize().w, by + dp(68))
     left_widget:free()
     right_widget:free()
 end
@@ -325,8 +334,9 @@ function Bars:onTap(_, ges)
         self:refresh()
         return true
     end
+    local top, bottom = self:panels()
     local y = ges.pos.y - self.dimen.y
-    if y > self.top_h and y < self.dimen.h - self.bottom_h then
+    if y > top.y + top.h and y < bottom.y then
         self:close()
     end
     return true
@@ -532,8 +542,8 @@ function Sheet:paintTo(bb, x, y)
     local sx = x + math.floor((self.dimen.w - sw) / 2)
     local sy = y + self.dimen.h - sh
     self.sheet_rect = { x = sx, y = sy, w = sw, h = sh }
-    Theme.fillRect(bb, sx, sy, sw, sh + dp(20), Theme.BG, dp(18))
-    bb:paintRect(sx + dp(18), sy, sw - dp(36), 1, Theme.LINE)
+    -- taller than the screen leaves room for, so only the top corners are rounded
+    Glass.panel(bb, sx, sy, sw, sh + dp(40), dp(26), { strength = 0.82 })
     -- grab handle
     Theme.fillRect(bb, sx + math.floor((sw - dp(36)) / 2), sy + dp(8), dp(36), dp(4), Theme.TRACK, dp(2))
 
@@ -638,7 +648,7 @@ function Sheet:paintTo(bb, x, y)
 
         -- font: three at a time, the last cell pages through the rest
         label("l_font", _("Font"))
-        local per_page = 3
+        local per_page = 2
         local pages = math.max(1, math.ceil(#self.fonts / per_page))
         if self.font_page > pages then self.font_page = 1 end
         local choices = {}
@@ -785,7 +795,7 @@ end
 function Reader.setup(ui)
     local function show()
         local bars = Bars:new{ ui = ui }
-        Animator.transition({ parts = bars:parts("cover"), duration = 0.16 }, function()
+        Animator.transition({ parts = bars:parts("wipe"), duration = 0.16 }, function()
             UIManager:show(bars)
         end)
         return true

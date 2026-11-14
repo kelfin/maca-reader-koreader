@@ -16,7 +16,8 @@ mkdir -p "$KO_HOME/patches" "$MACA_SHOTS"
 cp "$root/tools/maca/harness.lua" "$KO_HOME/patches/2-maca-harness.lua"
 case "${MACA_DEVICE:-phone}" in
     phone)  w=540;  h=1200; dpi=220 ;;
-    tablet) w=1280; h=800;  dpi=170 ;;
+    tablet) w=800;  h=1280; dpi=170 ;; # held in portrait
+    tablet-landscape) w=1280; h=800; dpi=170 ;;
     *) echo "unknown MACA_DEVICE" >&2; exit 2 ;;
 esac
 export EMULATE_READER_W="${EMULATE_READER_W:-$w}" EMULATE_READER_H="${EMULATE_READER_H:-$h}" EMULATE_READER_DPI="${EMULATE_READER_DPI:-$dpi}"

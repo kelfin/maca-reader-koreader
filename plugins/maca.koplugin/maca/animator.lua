@@ -148,11 +148,33 @@ function painters.uncover(bb, old, new, r, dir, p)
     end
 end
 
+-- The new picture appears in place, growing from one edge: "down" grows from
+-- the top edge downwards, "up" from the bottom edge upwards. Nothing moves,
+-- so this suits a panel floating over content that stays put.
+function painters.wipe(bb, old, new, r, dir, p)
+    local off = math.floor(r.h * p + 0.5)
+    if dir == "down" then
+        bb:blitFrom(new, r.x, r.y, r.x, r.y, r.w, off)
+    else
+        bb:blitFrom(new, r.x, r.y + r.h - off, r.x, r.y + r.h - off, r.w, off)
+    end
+end
+
+-- The reverse: the old picture shrinks back towards the edge it grew from.
+function painters.unwipe(bb, old, new, r, dir, p)
+    local off = math.floor(r.h * p + 0.5)
+    if dir == "up" then
+        bb:blitFrom(new, r.x, r.y + r.h - off, r.x, r.y + r.h - off, r.w, off)
+    else
+        bb:blitFrom(new, r.x, r.y, r.x, r.y, r.w, off)
+    end
+end
+
 --[[--
 Animate a change of the screen.
 
 @tparam table spec
-    kind      "slide", "cover" or "uncover"
+    kind      "slide", "cover", "uncover", "wipe" or "unwipe"
     dir       direction, see the painters above
     rect      area that animates (default: whole screen); or
     parts     list of { kind =, dir =, rect = } animated together

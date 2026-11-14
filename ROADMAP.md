@@ -139,6 +139,22 @@ Requested after the first build. Developed ahead of the remaining phases.
 - **Not possible in this toolkit:** real-time refraction, light effects, morphing shapes, zoom transitions. Those need native Android screens (the decision gate above).
 - **Still to do:** page turns that follow the finger (today a swipe or tap triggers a fixed 0.2 s slide); measuring frame rates on the phone and the tablet.
 
+## Added to the plan: read aloud with Kokoro (2026-11-14)
+
+Not started. Two steps, so the reader work is not wasted if Kokoro proves too slow or too large on the devices.
+
+**Step 1 — read aloud with the device's own voices**
+- Android side (launcher fork): a playback service on Android's text-to-speech interface, with a notification and play/pause, so reading continues with the screen off.
+- Reader side (plugin): send the page text sentence by sentence, highlight the sentence being spoken, turn the page when it runs out.
+- Controls in the reading bars: play/pause, speed, voice, sleep timer.
+
+**Step 2 — Kokoro built in**
+- Kokoro (82M-parameter model, Apache 2.0) running on-device through sherpa-onnx (Apache 2.0) inside the launcher, as a second engine behind the same controls.
+- Model downloaded on first use, not shipped in the APK (roughly 80–330 MB depending on the variant).
+- Languages: English is strongest; also Japanese, Chinese, Spanish, French, Hindi, Italian, Brazilian Portuguese. No Indonesian voice.
+
+**Open questions, answerable only on the devices:** speed on the phone and the tablet, battery use, and whether the spoken sentence and the highlight stay in step.
+
 ## Status
 
 As of 2026-11-14. "Emulator" means run by the scripted checks in `tools/maca/check.sh` on the desktop emulator. Nothing has run on the phone or the tablet yet.
@@ -150,7 +166,7 @@ As of 2026-11-14. "Emulator" means run by the scripted checks in `tools/maca/che
 | 2 Reading screen | Emulator, partly | Bars with seek slider and time left, display sheet, five page themes, bundled fonts, first-run margins. Missing: follow-the-finger page turns, simpler gesture defaults, cleaner status line. |
 | 3 Statistics | Emulator | Today card, week, overview, heat map, hours, most read, year in review, goal. Missing: share image, goal reminder. |
 | 4 Sync | Written, untested across devices | Position through KOSync (sign-in and auto-sync in More). Highlights, notes and status through a shared folder (`maca/syncfolder.lua`; additive merge, deletions do not propagate). Statistics sync is left to the Statistics plugin's own cloud sync. Book files are left to whatever syncs the folder. |
-| 5 Extras | Partly | Done: highlights notebook with Markdown export and share, time-left estimates, series awareness, backup and restore. Not started: read aloud, Wi-Fi upload, vocabulary review, comics mode, PDF comfort, home-screen widget, AI assist, per-format profiles, split view. |
+| 5 Extras | Partly | Done: highlights notebook with Markdown export and share, time-left estimates, series awareness, backup and restore. Planned above: read aloud with Kokoro. Not started: Wi-Fi upload, vocabulary review, comics mode, PDF comfort, home-screen widget, AI assist, per-format profiles, split view. |
 | 6 Hardening | Started | Unit tests in `spec/unit/maca_spec.lua`, scripted emulator checks. Missing: large-library test, device performance pass, upstream rebase routine. |
 
 ### Before calling it usable
